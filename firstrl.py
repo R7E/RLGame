@@ -11,8 +11,8 @@ import textwrap
 import shelve
 
 #actual size of the window
-SCREEN_WIDTH = 140
-SCREEN_HEIGHT = 80
+SCREEN_WIDTH = 50 * 16 / 9
+SCREEN_HEIGHT = 50
 
 #GUI panel size
 BAR_WIDTH = 20
@@ -23,13 +23,16 @@ MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 2
 MSG_HEIGHT = PANEL_HEIGHT - 1
 LEVEL_SCREEN_WIDTH = 40
 CHARACTER_SCREEN_WIDTH = 30
-MAP_WIDTH = SCREEN_WIDTH
-MAP_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT
+MAP_WIDTH = 200
+MAP_HEIGHT = 200
 
 INVENTORY_WIDTH = 50
 
 LIMIT_FPS = 20 #max frames per second
 
+#size fo map that is visible on screen
+CAMERA_WIDTH = SCREEN_WIDTH
+CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT
 
 
 #room generation
@@ -60,7 +63,7 @@ color_dark_ground = libtcod.Color(50, 50, 150)
 color_light_wall = libtcod.Color(130, 110, 50)
 color_light_ground = libtcod.Color(200, 180, 50)
 
-DEBUG =  False #True #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
+DEBUG =  True #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
 
 #good
 class Tile:
@@ -187,21 +190,26 @@ class Object:
 		objects.insert(0,self)
 	
 	def draw(self):
-		if DEBUG == True: # show objects for debug
-				# set the color and then draw the character that represents this object at its position
-				libtcod.console_set_default_foreground(con, self.color)
-				libtcod.console_put_char(con, self.x, self.y, self.char, libtcod.BKGND_NONE)
-		else:
+		# if DEBUG == True: # show objects for debug
+				# # set the color and then draw the character that represents this object at its position
+				# libtcod.console_set_default_foreground(con, self.color)
+				# libtcod.console_put_char(con, self.x, self.y, self.char, libtcod.BKGND_NONE)
+		# else:
 			#show only if's visible to the player
 			if (libtcod.map_is_in_fov(fov_map, self.x, self.y) or
 				(self.always_visible and map[self.x][self.y].explored)):
-				# set the color and then draw the character that represents this object at its position
-				libtcod.console_set_default_foreground(con, self.color)
-				libtcod.console_put_char(con, self.x, self.y, self.char, libtcod.BKGND_NONE)
+				(x, y) = to_camera_coordinates(self.x, self.y)
+				
+				if x is not None:
+					# set the color and then draw the character that represents this object at its position
+					libtcod.console_set_default_foreground(con, self.color)
+					libtcod.console_put_char(con, x, y, self.char, libtcod.BKGND_NONE)
 	  
 	def clear(self):
 		# erase the character that represents this object
-		libtcod.console_put_char(con, self.x, self.y, ' ', libtcod.BKGND_NONE)
+		(x, y) = to_camera_coordinates(self.x, self.y)
+		if x is not None:
+			libtcod.console_put_char(con, x, y, ' ', libtcod.BKGND_NONE)
 		
 
 #
@@ -456,8 +464,11 @@ def make_map():
 		h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
 		
 		#random position
-		x = libtcod.random_get_int(0, 2, abs(MAP_WIDTH / 2 * (dungeon_level)/7  - w - 3)) # use this equation sigmoid S(t) = 1/ (1+e^-t)
-		y = libtcod.random_get_int(0, 2, abs(MAP_HEIGHT / 2 *(dungeon_level)/7  - h - 3)) # exponential as exp(x)
+		#x = libtcod.random_get_int(0, 2, abs(MAP_WIDTH / 2 * (dungeon_level)/7  - w - 3)) # use this equation sigmoid S(t) = 1/ (1+e^-t)
+		#y = libtcod.random_get_int(0, 2, abs(MAP_HEIGHT / 2 *(dungeon_level)/7  - h - 3)) # exponential as exp(x)
+		x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 1)
+		y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 1)
+		
 		if x >= MAP_WIDTH - w - 1:
 			x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 1)
 		if y >= MAP_HEIGHT - h - 1:
@@ -749,19 +760,23 @@ def render_all():
 	# if you want to have ascii characters for everything check out this:
 	#http://www.roguebasin.com/index.php?title=Complete_Roguelike_Tutorial,_using_Python%2Blibtcod,_extras#Old-school_wall_and_floor_tiles
 
+	move_camera(player.x, player.y)
+	
 	if fov_recompute:
 		#recompute FOV if needed (the player moved or something)
 		fov_recompute = False
 		libtcod.map_compute_fov(fov_map, player.x, player.y, int(TORCH_RADIUS), FOV_LIGHT_WALLS, FOV_ALGO)
+		libtcod.console_clear(con)
 		
 		# go through all tiles, and set their background color
-		for y in range (MAP_HEIGHT):
-			for x in range(MAP_WIDTH):
-				visible = libtcod.map_is_in_fov(fov_map, x, y,)
-				wall = map[x][y].block_sight
+		for y in range (CAMERA_HEIGHT):
+			for x in range(CAMERA_WIDTH):
+				(map_x, map_y) = (camera_x + x, camera_y + y)
+				visible = libtcod.map_is_in_fov(fov_map, map_x, map_y,)
+				wall = map[map_x][map_y].block_sight
 				if not visible:
 					#if it's not visible right now, the player can only see it if it's explored
-					if map[x][y].explored:
+					if map[map_x][map_y].explored:
 						#it's out of player's FOV
 						if wall:
 							libtcod.console_set_char_background(con, x, y, color_dark_wall, libtcod.BKGND_SET )
@@ -774,7 +789,7 @@ def render_all():
 					else:
 						libtcod.console_set_char_background(con, x, y, color_light_ground, libtcod.BKGND_SET )
 					#scince it's visible, eplore it
-					map[x][y].explored = True
+					map[map_x][map_y].explored = True
 				
 	#draw all objects in the list, except player, draw last so it is on top
 	for object in objects:
@@ -968,6 +983,7 @@ def get_names_under_mouse():
 	
 	#return a string with th enames of all objects under th emouse
 	(x, y) = (mouse.cx, mouse.cy)
+	(x, y) = (camera_x + x, camera_y + y) #from screen to map coordinates
 	
 	#create a list with the names of all objects at the mouse's coordinates and in FOV
 	names = [obj.name for obj in objects
@@ -976,6 +992,32 @@ def get_names_under_mouse():
 	names = ', '.join(names) #join the names, separated by commas
 	return names.capitalize()
 
+def move_camera(target_x, target_y):
+		global camera_x, camera_y, fov_recompute
+		
+		#new camera coordinates (top-left corner of th escree relative to the map)
+		x = target_x - CAMERA_WIDTH / 2 #coordinates so that the target is at the center of the screen
+		y = target_y - CAMERA_HEIGHT / 2
+		
+		#make sure the camera doesn't see outside the map
+		if x < 0: x = 0
+		if y < 0: y = 0
+		if x > MAP_WIDTH - CAMERA_WIDTH - 1: x = MAP_WIDTH - CAMERA_WIDTH - 1
+		if y > MAP_HEIGHT - CAMERA_HEIGHT - 1: y = MAP_HEIGHT - CAMERA_HEIGHT - 1
+		
+		if x != camera_x or y != camera_y: fov_recompute = True
+		
+		(camera_x, camera_y) = (x, y)
+
+def to_camera_coordinates(x, y):
+	#convert coordinates on the map to coordinates on the screen
+	(x, y) = (x - camera_x, y - camera_y)
+	
+	if (x < 0 or y < 0 or x >= CAMERA_WIDTH or y >= CAMERA_HEIGHT):
+		return (None, None) # if it's outside the view, return nothing
+		
+	return (x, y)
+	
 #good	
 def cast_heal():
 	#heal the player
@@ -998,6 +1040,7 @@ def target_tile(max_range=None):
 		render_all()
 		
 		(x, y) = (mouse.cx, mouse.cy)
+		(x, y) = (camera_x + x, camera_y + y) # from screen to map coordinates
 		
 		if (mouse.lbutton_pressed and libtcod.map_is_in_fov(fov_map, x, y) and
 			(max_range is None or player.distance(x, y) <= max_range)):
@@ -1189,12 +1232,15 @@ def initialize_fov():
 
 #good 
 def play_game():
-	global key, mouse
+	global key, mouse, camera_x, camera_y
 	
 	player_action = None
 	
 	mouse = libtcod.Mouse()
 	key = libtcod.Key()
+	
+	(camera_x, camera_y) = (0, 0)
+	
 	while not libtcod.console_is_window_closed():
 		#render the screen
 		libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS|libtcod.EVENT_MOUSE,key,mouse)
