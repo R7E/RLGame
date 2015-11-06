@@ -11,8 +11,8 @@ import textwrap
 import shelve
 
 #actual size of the window
-SCREEN_WIDTH = 140 /2
-SCREEN_HEIGHT = 80 /2
+SCREEN_WIDTH = 140 
+SCREEN_HEIGHT = 80
 
 #GUI panel size
 BAR_WIDTH = 20
@@ -130,7 +130,7 @@ class Object:
 		self.equipment = equipment
 		if self.equipment:	#let the equipment component know who owns it
 			self.equipment.owner = self
-			#there must be an Item component for th eEquipment component to work propperly
+			#there must be an Item component for the Equipment component to work propperly
 			self.item = Item()
 			self.item.owner = self
 		
@@ -546,11 +546,12 @@ def place_objects(room):
 	item_chances = {}
 	item_chances['heal'] = 35 #healing potion always shows up, even if all other items have 0 chance
 	item_chances['lightning'] = from_dungeon_level([[1, 1], [25, 4]])
-	item_chances['fireball'] = from_dungeon_level([[1, 1], [25, 3]])
+	item_chances['fireball'] = from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
 	item_chances['confuse'] = from_dungeon_level([[1, 1], [25,2]])
-	item_chances['sword'] = from_dungeon_level([[5,2]])
-	item_chances['shield'] = from_dungeon_level([[5,3]])
-	item_chances['axe'] = 1
+	item_chances['sword'] = from_dungeon_level([[3,2]])
+	item_chances['shield'] = from_dungeon_level([[2,3]])
+	item_chances['axe'] = from_dungeon_level([[2,3]])
+	item_chances['AXE OF AWESOME'] = from_dungeon_level([[1,5]])
 	item_chances['torch'] = 35
 	item_chances['dagger'] = from_dungeon_level([[1, 1]])
 	
@@ -640,26 +641,31 @@ def place_objects(room):
 			
 			elif choice == 'sword':
 				#create a sword
-				equipment_component = Equipment(slot='right hand', power_bonus=4)
+				equipment_component = Equipment(slot='hand', power_bonus=4)
 				item = Object(x, y, '/', 'sword', libtcod.sky, equipment=equipment_component)
 			
 			elif choice == 'shield':
 				#create a shield
-				equipment_component = Equipment(slot='left hand', defense_bonus=1)
+				equipment_component = Equipment(slot='hand', defense_bonus=1)
 				item = Object(x, y, '[', 'shield', libtcod.darker_orange, equipment=equipment_component)
 							
 			elif choice == 'axe':
 				#create an axe
-				equipment_component = Equipment(slot='right hand', power_bonus=10)
+				equipment_component = Equipment(slot='hand', power_bonus=7)
+				item = Object(x, y, '7', 'axe', libtcod.black, equipment=equipment_component)
+				
+			elif choice == 'AXE OF AWESOME':
+				#create an axe
+				equipment_component = Equipment(slot='hand',  power_bonus=30, max_hp_bonus=30)
 				item = Object(x, y, '7', 'axe', libtcod.darker_orange, equipment=equipment_component)
 
 			# elif choice == 'torch':
 				# #create a torch
-				# equipment_component = Equipment(slot='left hand')
+				# equipment_component = Equipment(slot='hand')
 				# item = Object(x, y, 'i', 'torch', libtcod.darker_orange, equipment=equipment_component)
 			
 			elif choice == 'dagger':
-				equipment_component = Equipment(slot='right hand', power_bonus=2)
+				equipment_component = Equipment(slot='hand', power_bonus=2)
 				item = Object(x, y, '-', 'dagger', libtcod.sky, equipment=equipment_component)
 			
 			objects.append(item)
@@ -1191,20 +1197,18 @@ def new_game():
 	#create the list of game messages and their colors, starts empty
 	game_msgs = []
 	
-	
-	
 	#opening game message
-	message('Welcome stranger! Prepare to perish in the Tombs of Ancient Kings.', libtcod.red)
+	message('You fall through a hole in the ground. It\'s dark you should light a torch.', libtcod.red)
 
 	#initial equipment: a dagger
-	equipment_component = Equipment(slot='right hand', power_bonus=2)
+	equipment_component = Equipment(slot='hand', power_bonus=2)
 	obj = Object(0, 0, '-', 'dagger', libtcod.sky, equipment=equipment_component)
 	inventory.append(obj)
 	equipment_component.equip()
 	obj.always_visible = True
 	
 	#torch to reduce as time goes on
-	TORCH_RADIUS = 2
+	TORCH_RADIUS = 3
 	
 	#initial equipment: a torch
 	item_component = Item(use_function=light_torch)	
