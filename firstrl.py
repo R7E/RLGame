@@ -1197,20 +1197,18 @@ def new_game():
 	#create the list of game messages and their colors, starts empty
 	game_msgs = []
 	
-	
-	
 	#opening game message
-	message('Welcome stranger! Prepare to perish in the Tombs of Ancient Kings.', libtcod.red)
+	message('You fall through a hole in the ground. It\'s dark you should light a torch.', libtcod.red)
 
 	#initial equipment: a dagger
-	equipment_component = Equipment(slot='right hand', power_bonus=2)
+	equipment_component = Equipment(slot='hand', power_bonus=2)
 	obj = Object(0, 0, '-', 'dagger', libtcod.sky, equipment=equipment_component)
 	inventory.append(obj)
 	equipment_component.equip()
 	obj.always_visible = True
 	
 	#torch to reduce as time goes on
-	TORCH_RADIUS = 2
+	TORCH_RADIUS = 3
 	
 	#initial equipment: a torch
 	item_component = Item(use_function=light_torch)	
