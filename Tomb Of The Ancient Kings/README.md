@@ -1,7 +1,5 @@
-# RLGame v0.1.3
+# RLGame
 My first attempt at a python game using python 2.7 and libtcodpy 1.5.1
-
-You can download the folder or the .zip and play the executable.
 
 Each level is randomly generated.
 
