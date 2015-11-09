@@ -32,7 +32,7 @@ LIMIT_FPS = 20 #max frames per second
 
 #size fo map that is visible on screen
 CAMERA_WIDTH = SCREEN_WIDTH
-CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT
+CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT - 1
 
 
 #room generation
@@ -1130,6 +1130,8 @@ def player_death(player):
 	#for added effect, transform the player into a corpse!
 	player.char = '@'
 	player.color = libtcod.dark_red
+	msgbox('Perhaps you should have ran away.')
+	return 'exit'
 	
 		
 def monster_death(monster):
