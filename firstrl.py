@@ -9,6 +9,9 @@ import libtcodpy as libtcod
 import math
 import textwrap
 import shelve
+#import winsound
+
+
 
 #actual size of the window
 SCREEN_WIDTH = 140 
@@ -23,8 +26,9 @@ MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 2
 MSG_HEIGHT = PANEL_HEIGHT - 1
 LEVEL_SCREEN_WIDTH = 40
 CHARACTER_SCREEN_WIDTH = 30
-MAP_WIDTH = 140
-MAP_HEIGHT = 80
+
+MAP_WIDTH = 170
+MAP_HEIGHT = 100
 
 INVENTORY_WIDTH = 50
 
@@ -38,7 +42,7 @@ CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT - 1
 #room generation
 ROOM_MAX_SIZE = 13
 ROOM_MIN_SIZE = 3
-MAX_ROOMS = 100
+MAX_ROOMS = 60
 
 
 FOV_ALGO = 0 #defalut FOV algorithm
@@ -63,7 +67,7 @@ color_dark_ground = libtcod.Color(50, 50, 150)
 color_light_wall = libtcod.Color(130, 110, 50)
 color_light_ground = libtcod.Color(200, 180, 50)
 
-DEBUG =  False #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
+DEBUG =  True #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
 
 #good
 class Tile:
@@ -263,7 +267,6 @@ class Fighter:
 		if self.hp > self.max_hp:
 			self.hp = self.max_hp					
 
-		
 class BasicMonster:
 	#AI for a basic monster.
 	def take_turn(self):
@@ -287,7 +290,6 @@ class BasicMonster:
 				
 		else: # wander aimlessly
 			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
-
 
 class ConfusedMonster:
 	#AI for a temporarily confused monster (reverts to previous AI after a while.)
@@ -450,24 +452,92 @@ def make_map():
 	rooms = []
 	num_rooms = 0	
 
+	#initial x, y
+	x = MAP_WIDTH / 2 # libtcod.random_get_int(0, 0, MAP_WIDTH - 2)
+	y  = MAP_HEIGHT / 2  #libtcod.random_get_int(0, 0, MAP_HEIGHT - 2)
+	pick = -1
+	yup0 = 1
+	yup1 = 1
+	yup2 = 1
+	yup3 = 1
+	w = 5
+	h = 5
+	
 	for r in range(MAX_ROOMS):
 		
 		#random width and height
-		w = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
-		h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
+		w = libtcod.random_get_int(0, ROOM_MIN_SIZE * 2, ROOM_MAX_SIZE)
+		h = libtcod.random_get_int(0, ROOM_MIN_SIZE * 2, ROOM_MAX_SIZE)
 		
-		#random position
+		# place room corners in random position
+		# x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2)
+		# y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
+		
+		#increasing level size.
 		#x = libtcod.random_get_int(0, 2, abs(MAP_WIDTH / 2 * (dungeon_level)/7  - w - 3)) # use this equation sigmoid S(t) = 1/ (1+e^-t)
 		#y = libtcod.random_get_int(0, 2, abs(MAP_HEIGHT / 2 *(dungeon_level)/7  - h - 3)) # exponential as exp(x)
-		x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 1)
-		y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 1)
 		
-		# if x >= MAP_WIDTH - w - 1:
-			# x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 1)
-		# if y >= MAP_HEIGHT - h - 1:
-			# y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 1)
+
 		
 		
+		
+		flip = libtcod.random_get_int(0, 0, 3)
+		if flip == 0 and pick !=flip and yup0 == 1:
+			x = x - w - 1
+			y = y - h - 1
+			yup0 = -1
+		
+		if flip == 1 and pick !=flip  and yup1 == 1:
+			x = x + w + 1
+			y = y - h - 1
+			yup1 = -1
+			
+		if flip == 2 and pick !=flip  and yup2 == 1:
+			x = x - w - 1
+			y = y + h + 1
+			yup2 = -1	
+			
+		if flip == 3 and pick !=flip  and yup3 == 1:
+			x = x + w + 1
+			y = y + h + 1
+			yup3 = -1
+		#
+		if flip == 0 and pick ==flip and yup0 == 1:
+			x = x - 2 * w  - 1
+			y = y - 2 * h  - 1
+			yup0 = -1
+		
+		if flip == 1 and pick ==flip  and yup1 == 1:
+			x = x + 2 * w + 1
+			y = y - 2 * h - 1
+			yup1 = -1
+			
+		if flip == 2 and pick ==flip  and yup2 == 1:
+			x = x - 2 * w - 1
+			y = y + 2 * h + 1
+			yup2 = -1	
+			
+		if flip == 3 and pick ==flip  and yup3 == 1:
+			x = x + 2 * w + 1
+			y = y + 2 * h + 1
+			yup3 = -1
+		
+		if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1:
+			yup0 = 1
+			yup1 = 1
+			yup2 = 1
+			yup3 = 1
+		
+		print'%d,%d' % (x, y)
+		
+		pick = flip 
+		
+		
+		if x >= MAP_WIDTH - w - 1:
+			x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 1)
+		if y >= MAP_HEIGHT - h - 1:
+			y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 1)
+			
 		#"Rect" class makes rectangles easier to work with
 		new_room = Rect(x, y, w, h)
 		
@@ -497,7 +567,7 @@ def make_map():
 			# objects.insert(0, room_no) #draw early, so monsters are drawn on top
 				
 			if num_rooms == 0:
-					#this is the first room, where the player starts at
+				#this is the first room, where the player starts at
 				player.x = new_x
 				player.y = new_y
 					
@@ -981,12 +1051,12 @@ def handle_keys():
 			return 'didnt-take-turn'
 			
 def get_names_under_mouse():
-	global mouse
-	
+	global mouse, player
+	#changing to player
 	#return a string with th enames of all objects under th emouse
-	(x, y) = (mouse.cx, mouse.cy)
-	(x, y) = (camera_x + x, camera_y + y) #from screen to map coordinates
-	
+	#(x, y) = (mouse.x, mouse.cy)
+	#(x, y) = (camera_x + x, camera_y + y) #from screen to map coordinates
+	(x, y) = (player.x, player.y)
 	#create a list with the names of all objects at the mouse's coordinates and in FOV
 	names = [obj.name for obj in objects
 		if obj.x == x and obj.y == y and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
@@ -1130,6 +1200,10 @@ def player_death(player):
 	#for added effect, transform the player into a corpse!
 	player.char = '@'
 	player.color = libtcod.dark_red
+	
+	# make some sound to indicate end.
+	#winsound.Beep(100, 100)
+	
 	msgbox('Perhaps you should have ran away.')
 	return 'exit'
 	
@@ -1217,6 +1291,7 @@ def new_game():
 	obj = Object(0, 0, 'i', 'torch', libtcod.darker_orange, item=item_component)
 	inventory.append(obj)
 	obj.always_visible = True
+
 
 def initialize_fov():
 	global fov_recompute, fov_map
