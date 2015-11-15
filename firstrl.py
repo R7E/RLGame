@@ -271,7 +271,7 @@ class BasicMonster:
 		monster = self.owner
 		
 		#message for hearing monster just outside of your torch radius (will listen thorugh walls)
-		if monster.distance_to(player) >= 10 and monster.distance_to(player) <= 12:
+		if monster.distance_to(player) >= TORCH_RADIUS and monster.distance_to(player) <= 12:
 			message('You hear a ' + self.owner.name + ' move around!', libtcod.red)
 			
 		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
@@ -937,11 +937,7 @@ def player_move_or_attack(dx,dy):
 	else:
 		player.move(dx, dy)
 	fov_recompute = True
-	
-	# #torch deminishing
-	# TORCH_RADIUS -=.1
-	# if TORCH_RADIUS <2:
-		# TORCH_RADIUS = 2
+
 	
 	
 		
