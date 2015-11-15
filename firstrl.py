@@ -275,7 +275,7 @@ class BasicMonster:
 			message('You hear a ' + self.owner.name + ' move around!', libtcod.red)
 			
 		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
-		if	monster.distance_to(player)<= 14:
+		if	monster.distance_to(player)<= 5:
 			
 			#move towards player if far away
 			if monster.distance_to(player)>= 2:
