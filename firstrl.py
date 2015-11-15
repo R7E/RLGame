@@ -9,9 +9,6 @@ import libtcodpy as libtcod
 import math
 import textwrap
 import shelve
-#import winsound
-
-
 
 #actual size of the window
 SCREEN_WIDTH = 140 
@@ -26,9 +23,8 @@ MSG_WIDTH = SCREEN_WIDTH - BAR_WIDTH - 2
 MSG_HEIGHT = PANEL_HEIGHT - 1
 LEVEL_SCREEN_WIDTH = 40
 CHARACTER_SCREEN_WIDTH = 30
-
-MAP_WIDTH = 170
-MAP_HEIGHT = 100
+MAP_WIDTH = 140
+MAP_HEIGHT = 80
 
 INVENTORY_WIDTH = 50
 
@@ -36,13 +32,13 @@ LIMIT_FPS = 20 #max frames per second
 
 #size fo map that is visible on screen
 CAMERA_WIDTH = SCREEN_WIDTH
-CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT - 1
+CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT
 
 
 #room generation
 ROOM_MAX_SIZE = 13
 ROOM_MIN_SIZE = 3
-MAX_ROOMS = 60
+MAX_ROOMS = 100
 
 
 FOV_ALGO = 0 #defalut FOV algorithm
@@ -67,7 +63,7 @@ color_dark_ground = libtcod.Color(50, 50, 150)
 color_light_wall = libtcod.Color(130, 110, 50)
 color_light_ground = libtcod.Color(200, 180, 50)
 
-DEBUG =  True #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
+DEBUG =  False #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
 
 #good
 class Tile:
@@ -267,6 +263,7 @@ class Fighter:
 		if self.hp > self.max_hp:
 			self.hp = self.max_hp					
 
+		
 class BasicMonster:
 	#AI for a basic monster.
 	def take_turn(self):
@@ -290,6 +287,7 @@ class BasicMonster:
 				
 		else: # wander aimlessly
 			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
+
 
 class ConfusedMonster:
 	#AI for a temporarily confused monster (reverts to previous AI after a while.)
@@ -462,84 +460,79 @@ def make_map():
 	yup3 = 1
 	w = 5
 	h = 5
+	map_type = libtcod.random_get_int(0, 0, 1)
 	
 	for r in range(MAX_ROOMS):
 		
-		#random width and height
-		w = libtcod.random_get_int(0, ROOM_MIN_SIZE * 2, ROOM_MAX_SIZE)
-		h = libtcod.random_get_int(0, ROOM_MIN_SIZE * 2, ROOM_MAX_SIZE)
-		
-		# place room corners in random position
-		# x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2)
-		# y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
-		
-		#increasing level size.
-		#x = libtcod.random_get_int(0, 2, abs(MAP_WIDTH / 2 * (dungeon_level)/7  - w - 3)) # use this equation sigmoid S(t) = 1/ (1+e^-t)
-		#y = libtcod.random_get_int(0, 2, abs(MAP_HEIGHT / 2 *(dungeon_level)/7  - h - 3)) # exponential as exp(x)
-		
-
-		
-		
-		
-		flip = libtcod.random_get_int(0, 0, 3)
-		if flip == 0 and pick !=flip and yup0 == 1:
-			x = x - w - 1
-			y = y - h - 1
-			yup0 = -1
-		
-		if flip == 1 and pick !=flip  and yup1 == 1:
-			x = x + w + 1
-			y = y - h - 1
-			yup1 = -1
+		if map_type == 0:
+			#random width and height
+			w = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
+			h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
 			
-		if flip == 2 and pick !=flip  and yup2 == 1:
-			x = x - w - 1
-			y = y + h + 1
-			yup2 = -1	
+			#random position
+			x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2)
+			y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
+		
+		else:
+			for t in range(0, 3):
+				flip = libtcod.random_get_int(0, 0, 3)
+				if flip == 0 and pick !=flip and yup0 == 1:
+					x = x - w - 1
+					y = y - h - 1
+					yup0 = -1
+				
+				if flip == 1 and pick !=flip  and yup1 == 1:
+					x = x + w + 1
+					y = y - h - 1
+					yup1 = -1
+					
+				if flip == 2 and pick !=flip  and yup2 == 1:
+					x = x - w - 1
+					y = y + h + 1
+					yup2 = -1	
+					
+				if flip == 3 and pick !=flip  and yup3 == 1:
+					x = x + w + 1
+					y = y + h + 1
+					yup3 = -1
+				#
+				if flip == 0 and pick ==flip and yup0 == 1:
+					x = x - 2 * w  - 1
+					y = y - 2 * h  - 1
+					yup0 = -1
+				
+				if flip == 1 and pick ==flip  and yup1 == 1:
+					x = x + 2 * w + 1
+					y = y - 2 * h - 1
+					yup1 = -1
+					
+				if flip == 2 and pick ==flip  and yup2 == 1:
+					x = x - 2 * w - 1
+					y = y + 2 * h + 1
+					yup2 = -1	
+					
+				if flip == 3 and pick ==flip  and yup3 == 1:
+					x = x + 2 * w + 1
+					y = y + 2 * h + 1
+					yup3 = -1
+				
+				if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1:
+					yup0 = 1
+					yup1 = 1
+					yup2 = 1
+					yup3 = 1
+							
+				pick = flip 
 			
-		if flip == 3 and pick !=flip  and yup3 == 1:
-			x = x + w + 1
-			y = y + h + 1
-			yup3 = -1
-		#
-		if flip == 0 and pick ==flip and yup0 == 1:
-			x = x - 2 * w  - 1
-			y = y - 2 * h  - 1
-			yup0 = -1
-		
-		if flip == 1 and pick ==flip  and yup1 == 1:
-			x = x + 2 * w + 1
-			y = y - 2 * h - 1
-			yup1 = -1
+		if x >= MAP_WIDTH - w - 2:
+			x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 2)
+		if y >= MAP_HEIGHT - h - 2:
+			y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 2)
 			
-		if flip == 2 and pick ==flip  and yup2 == 1:
-			x = x - 2 * w - 1
-			y = y + 2 * h + 1
-			yup2 = -1	
-			
-		if flip == 3 and pick ==flip  and yup3 == 1:
-			x = x + 2 * w + 1
-			y = y + 2 * h + 1
-			yup3 = -1
 		
-		if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1:
-			yup0 = 1
-			yup1 = 1
-			yup2 = 1
-			yup3 = 1
-		
-		print'%d,%d' % (x, y)
-		
-		pick = flip 
-		
-		
-		if x >= MAP_WIDTH - w - 1:
-			x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 1)
-		if y >= MAP_HEIGHT - h - 1:
-			y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 1)
-			
 		#"Rect" class makes rectangles easier to work with
 		new_room = Rect(x, y, w, h)
+		
 		
 		
 		#run through the other rooms and see if they intersect with this one
@@ -567,7 +560,7 @@ def make_map():
 			# objects.insert(0, room_no) #draw early, so monsters are drawn on top
 				
 			if num_rooms == 0:
-				#this is the first room, where the player starts at
+					#this is the first room, where the player starts at
 				player.x = new_x
 				player.y = new_y
 					
@@ -617,12 +610,12 @@ def place_objects(room):
 	item_chances['heal'] = 35 #healing potion always shows up, even if all other items have 0 chance
 	item_chances['lightning'] = from_dungeon_level([[1, 1], [25, 4]])
 	item_chances['fireball'] = from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
-	item_chances['confuse'] = from_dungeon_level([[1, 1], [25,2]])
-	item_chances['sword'] = from_dungeon_level([[3,2]])
-	item_chances['shield'] = from_dungeon_level([[2,3]])
-	item_chances['axe'] = from_dungeon_level([[2,3]])
+	item_chances['confuse'] = from_dungeon_level([[1, 1], [1, 1], [25,2]])
+	item_chances['sword'] = from_dungeon_level([[1, 1], [3,2]])
+	item_chances['shield'] = from_dungeon_level([[1, 1], [2,3]])
+	item_chances['axe'] = from_dungeon_level([[1, 1], [2,3]])
 	item_chances['AXE OF AWESOME'] = from_dungeon_level([[1,5]])
-	item_chances['torch'] = 35
+	item_chances['torch'] = 20
 	item_chances['dagger'] = from_dungeon_level([[1, 1]])
 	
 	# choose random number of monsters
@@ -1051,12 +1044,12 @@ def handle_keys():
 			return 'didnt-take-turn'
 			
 def get_names_under_mouse():
-	global mouse, player
-	#changing to player
+	global mouse
+	
 	#return a string with th enames of all objects under th emouse
-	#(x, y) = (mouse.x, mouse.cy)
-	#(x, y) = (camera_x + x, camera_y + y) #from screen to map coordinates
-	(x, y) = (player.x, player.y)
+	(x, y) = (mouse.cx, mouse.cy)
+	(x, y) = (camera_x + x, camera_y + y) #from screen to map coordinates
+	
 	#create a list with the names of all objects at the mouse's coordinates and in FOV
 	names = [obj.name for obj in objects
 		if obj.x == x and obj.y == y and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
@@ -1201,12 +1194,6 @@ def player_death(player):
 	player.char = '@'
 	player.color = libtcod.dark_red
 	
-	# make some sound to indicate end.
-	#winsound.Beep(100, 100)
-	
-	msgbox('Perhaps you should have ran away.')
-	return 'exit'
-	
 		
 def monster_death(monster):
 	#transform into a corpse. It doesn't block, or attack, or move
@@ -1291,7 +1278,6 @@ def new_game():
 	obj = Object(0, 0, 'i', 'torch', libtcod.darker_orange, item=item_component)
 	inventory.append(obj)
 	obj.always_visible = True
-
 
 def initialize_fov():
 	global fov_recompute, fov_map
