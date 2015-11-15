@@ -136,14 +136,14 @@ class Object:
 		
 	def move(self, dx, dy):
 		# move b the given amount
-		if not is_blocked(self.x + dx, self.y + dy):
+		if not is_blocked(self.x + dx, self.y + dy, map):
 			self.x += dx
 			self.y += dy
 		
 	def move_towards(self, target_x, target_y):
 		dx = target_x - self.x
 		dy = target_y - self.y
-		#if not is_blocked(self.x + dx, self.y + dy):
+		
 		if dx > 0:
 			dx = 1
 		if dx < 0:
@@ -168,10 +168,10 @@ class Object:
 		self.moveai(dx, dy)
 	
 	def moveai(self, dx, dy): # causes monsters to line up in a row if there are a lot.
-		if not is_blocked(self.x, self.y + dy):
+		if not is_blocked(self.x, self.y + dy, map):
 			self.y += dy
 		
-		if not is_blocked(self.x + dx, self.y):
+		if not is_blocked(self.x + dx, self.y, map):
 			self.x += dx		
 		
 	def distance_to(self, other):
@@ -288,6 +288,41 @@ class BasicMonster:
 		else: # wander aimlessly
 			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
 
+class Trap:
+	#AI for a basic monster.
+	def take_turn(self):
+		#a basic monster takes its turn. If you can see it, it can see you
+		monster = self.owner
+					
+		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+		if	monster.distance_to(player)<= 2: # basic range should be part of a ranged attack for monster 
+			if player.fighter.hp > 0:
+				monster.fighter.attack(player)
+				
+class RangedMonster:
+	#AI for a basic monster.
+	def take_turn(self):
+		#a basic monster takes its turn. If you can see it, it can see you
+		monster = self.owner
+		
+		#message for hearing monster just outside of your torch radius (will listen thorugh walls)
+		if monster.distance_to(player) >= TORCH_RADIUS and monster.distance_to(player) <= 12:
+			message('You hear a ' + self.owner.name + ' move around!', libtcod.red)
+			
+		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+		if	monster.distance_to(player)<= 5:
+			
+			#move towards player if far away
+			if monster.distance_to(player)>= 3: #Range is 2
+				monster.move_towards(player.x, player.y)
+				
+			#close enough, shoot at the player (if the player is still alive.)
+			elif player.fighter.hp > 0:
+				monster.fighter.attack(player)
+				
+		else: # wander aimlessly
+			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
+		
 
 class ConfusedMonster:
 	#AI for a temporarily confused monster (reverts to previous AI after a while.)
@@ -401,29 +436,29 @@ def get_all_equipped(obj): #return a list of equipped items
 	else:
 		return [] #other objects have no equipment. if you want to have monster have equipment duplicate player.
 			
-def create_room(room):
-	global map
+def create_room(room, map):
+
 	#go through the tiles in the rectangle and make them passable
 	for x in range(room.x1 + 1, room.x2):
 		for y in range(room.y1 + 1, room.y2):
 			map[x][y].blocked = False
 			map[x][y].block_sight = False
 
-def create_h_tunnel(x1, x2, y):
-	global map
+def create_h_tunnel(x1, x2, y, map):
+
 	#horrizontial tunnel
 	for x in range(min(x1, x2), max(x1, x2) +1):
 		map[x][y].blocked = False
 		map[x][y].block_sight = False
 	
-def create_v_tunnel(y1, y2, x):
-	global map
+def create_v_tunnel(y1, y2, x, map):
+	
 	#vertical tunnel
 	for y in range(min(y1, y2), max(y1, y2) + 1):
 		map[x][y].blocked = False
 		map[x][y].block_sight = False
 
-def is_blocked(x, y):
+def is_blocked(x, y, map):
 	#first test the map tile
 	if map[x][y].blocked:		
 		return True
@@ -546,7 +581,7 @@ def make_map():
 			#this means there are no intersections, so this room is valid
 				
 			# "paint" it to the map's tiles
-			create_room(new_room)
+			create_room(new_room, map)
 			
 			#add some contents to this room, such as monsters
 			place_objects(new_room)
@@ -574,13 +609,13 @@ def make_map():
 				#draw a coin (random number that is either 0 or 1)
 				if libtcod.random_get_int(0, 0, 1) == 1:
 					#first move horizontally, then vertically
-					create_h_tunnel(prev_x, new_x, prev_y)
-					create_v_tunnel(prev_y, new_y, new_x)
+					create_h_tunnel(prev_x, new_x, prev_y, map)
+					create_v_tunnel(prev_y, new_y, new_x, map)
 						
 				else:
 					#first move vertically, then horizontally
-					create_v_tunnel(prev_y, new_y, prev_x)
-					create_h_tunnel(prev_x, new_x, new_y)
+					create_v_tunnel(prev_y, new_y, prev_x, map)
+					create_h_tunnel(prev_x, new_x, new_y, map)
 						
 			#finally, append the new room to the list
 			rooms.append(new_room)
@@ -601,7 +636,8 @@ def place_objects(room):
 	monster_chances['orc'] = 80 #orc always shows up, even if all other monsters have 0 chance
 	monster_chances['troll'] = from_dungeon_level([ [15, 2], [30, 3], [60, 4], [100, 5] ])
 	monster_chances['snake'] = from_dungeon_level([ [50, 1], [40, 2], [20, 4], [10, 5] ])
-	
+	monster_chances['trap'] = 50
+	monster_chances['bandit'] = 100
 	# maximum number of items per room in the format of [%chance, level]
 	max_items = from_dungeon_level([[2, 1], [3, 2], [2, 3], [2, 4], [5, 5], [6, 8], [7, 10] ])
 	
@@ -617,7 +653,7 @@ def place_objects(room):
 	item_chances['AXE OF AWESOME'] = from_dungeon_level([[1,5]])
 	item_chances['torch'] = 20
 	item_chances['dagger'] = from_dungeon_level([[1, 1]])
-	
+		
 	# choose random number of monsters
 	num_monsters = libtcod.random_get_int(0, 0, max_monsters)
 	for i in range(num_monsters):
@@ -626,7 +662,7 @@ def place_objects(room):
 		y = libtcod.random_get_int(0, room.y1+1, room.y2-1)
 		
 		# only place it if the tile is not blocked
-		if not is_blocked(x, y):
+		if not is_blocked(x, y, map):
 			choice = random_choice(monster_chances) 
 			if choice == 'orc':
 				# create orc
@@ -651,15 +687,22 @@ def place_objects(room):
 				
 				monster = Object(x, y, 's', 'snake', libtcod.desaturated_green,
 					blocks=True, fighter=fighter_component, ai=ai_component)
-				
 					
-			# elif choice == 'bandit':
-				# # create a bandit
-				# fighter_component = Fighter(hp=5, defense=2, power=4, xp=50, death_function=monster_death)
-				# ai_component = BasicMonster()
+			elif choice == 'trap':
+				# create a trap
+				fighter_component = Fighter(hp=1, defense=0, power=4, xp=5, death_function=monster_death)
+				ai_component = Trap()
 				
-				# monster = Object(x, y, 'b', 'bandit', libtcod.darker_green,
-					# blocks=True, fighter=fighter_component, ai=ai_component)
+				monster = Object(x, y, '+', 'trap', libtcod.desaturated_green,
+					blocks=True, fighter=fighter_component, ai=ai_component)	
+					
+			elif choice == 'bandit':
+				# create a bandit
+				fighter_component = Fighter(hp=5, defense=2, power=2, xp=50, death_function=monster_death)
+				ai_component = RangedMonster()
+				
+				monster = Object(x, y, 'b', 'bandit', libtcod.darker_green,
+					blocks=True, fighter=fighter_component, ai=ai_component)
 					
 			objects.append(monster)
 			if DEBUG == True:
@@ -674,7 +717,7 @@ def place_objects(room):
 		y = libtcod.random_get_int(0, room.y1+1, room.y2-1)
 		
 		# only place an item if the tile is not blocked
-		if not is_blocked(x, y):
+		if not is_blocked(x, y, map):
 			choice = random_choice(item_chances)
 			if choice == 'heal':
 				# create a healing potion
@@ -701,7 +744,6 @@ def place_objects(room):
 				item_component = Item(use_function=light_torch)
 				item = Object(x, y, 'i', 'torch', libtcod.darker_orange, item=item_component)
 			
-			
 			elif choice == 'sword':
 				#create a sword
 				equipment_component = Equipment(slot='hand', power_bonus=4)
@@ -720,7 +762,7 @@ def place_objects(room):
 			elif choice == 'AXE OF AWESOME':
 				#create an axe
 				equipment_component = Equipment(slot='hand',  power_bonus=30, max_hp_bonus=30)
-				item = Object(x, y, '7', 'axe', libtcod.darker_orange, equipment=equipment_component)
+				item = Object(x, y, '7', 'axe of awesome', libtcod.darker_orange, equipment=equipment_component)
 
 			# elif choice == 'torch':
 				# #create a torch
