@@ -410,14 +410,24 @@ class Item:
 		message('Left-click a target tile throw, or right-click to cancel.', libtcod.light_cyan)
 		(x, y) = target_tile()
 		if x is None: return 'cancelled' # cancel if tile no tile targeted in the x position
-		message('You throw a ' + self.owner.name + ' !', libtcod.orange)
-		objects.append(self.owner)
-		inventory.remove(self.owner)
-		self.owner.x = x
-		self.owner.y = y
+		
+		if is_occupied(x, y, map):
+			message('You cannot throw a ' + self.owner.name + ' there.', libtcod.orange)
+			return 'cancelled'
+		else:
+			message('You throw a ' + self.owner.name + '!', libtcod.orange)
+			objects.append(self.owner) # place item in objects list
+			inventory.remove(self.owner) # take item out of player inventory
+			#assign item to location
+			self.owner.x = x
+			self.owner.y = y
+			for obj in objects: #damage every fighter in range, including the player
+				if obj.distance(x, y) <= 0 and obj.fighter:
+					message('The ' + obj.name + ' gets hit by a ' + self.owner.name + ' for ' + str(2) + ' points!', libtcod.orange)
+					obj.fighter.take_damage(2)
 
 class Equipment:
-	#an object tha tcan be equipped, yeilding bonuses. automatically adds the item component.
+	#an object that can be equipped, yeilding bonuses. automatically adds the item component.
 	def __init__(self, slot, power_bonus=0, defense_bonus=0, max_hp_bonus=0):
 		self.power_bonus = power_bonus
 		self.defense_bonus = defense_bonus
@@ -480,6 +490,13 @@ def create_v_tunnel(y1, y2, x, map):
 		map[x][y].blocked = False
 		map[x][y].block_sight = False
 
+def is_occupied(x, y, map):
+	#test the map tile to see if it is blocked
+	if map[x][y].blocked:		
+		return True # if the tile is blocked return true
+		
+	return False		
+		
 def is_blocked(x, y, map):
 	#first test the map tile
 	if map[x][y].blocked:		
@@ -488,7 +505,7 @@ def is_blocked(x, y, map):
 	#now check for any blocking objects
 	for object in objects:
 		if object.blocks and object.x == x and object.y == y:
-			return True
+			return True #if there is already a blocking object on the tile return true
 			
 	return False		
 
@@ -517,7 +534,7 @@ def make_map():
 	yup3 = 1
 	w = 5
 	h = 5
-	map_type = libtcod.random_get_int(0, 0, 1)
+	map_type = 1 #libtcod.random_get_int(0, 0, 1)
 	
 	for r in range(MAX_ROOMS):
 		
@@ -531,6 +548,8 @@ def make_map():
 			y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
 		
 		else:
+			w = libtcod.random_get_int(0, 3, 7)
+			h = w
 			for t in range(0, 3): # run generation three times to make the rooms
 				flip = libtcod.random_get_int(0, 0, 3) # pick one of 4 directions, once the direction is used eliminate that choice so there are not stright runs.
 				if flip == 0 and pick !=flip and yup0 == 1:
@@ -717,21 +736,21 @@ def place_objects(room):
 				monster.always_visible = True
 			
 	# maximum number of items per room in the format of [%chance, level]
-	max_items = from_dungeon_level([[2, 1], [3, 2], [2, 3], [2, 4], [5, 5], [6, 8], [7, 10] ])
+	max_items = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])
 	
 	# chance of each item (by default they have a chance of 0 at level 1, which then goes up)
 	item_chances = {}
-	item_chances['heal'] = 25 #healing potion always shows up, even if all other items have 0 chance
-	item_chances['lightning'] = from_dungeon_level([[1, 1], [25, 4]])
-	item_chances['fireball'] = from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
-	item_chances['confuse'] = from_dungeon_level([[1, 1], [1, 1], [25,2]])
-	item_chances['sword'] = from_dungeon_level([[1, 1], [3,2]])
-	item_chances['shield'] = from_dungeon_level([[1, 1], [2,3]])
-	item_chances['axe'] = from_dungeon_level([[1, 1], [2,3]])
-	item_chances['AXE OF AWESOME'] = from_dungeon_level([[1,5]])
-	item_chances['torch'] = 15
-	item_chances['dagger'] = from_dungeon_level([[1, 1]])
-	item_chances['gold'] = 3
+	item_chances['heal'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#25 #healing potion always shows up, even if all other items have 0 chance
+	item_chances['lightning'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [25, 4]])
+	item_chances['fireball'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
+	item_chances['confuse'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [1, 1], [25,2]])
+	item_chances['sword'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [3,2]])
+	item_chances['shield'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [2,3]])
+	item_chances['axe'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [2,3]])
+	item_chances['AXE OF AWESOME'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1,5]])
+	item_chances['torch'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#10
+	item_chances['dagger'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1]])
+	item_chances['gold'] = from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#3
 	
 	# choose random number of itmes
 	num_items = libtcod.random_get_int(0, 0, max_items)
@@ -770,8 +789,8 @@ def place_objects(room):
 			
 			elif choice == 'gold':
 				# create a torch light
-				item_component = Item(use_function=light_torch)
-				item = Object(x, y, '$', 'gold', libtcod.yellow)
+				item_component = Item(use_function=None)
+				item = Object(x, y, '$', 'gold', libtcod.yellow, item=item_component)
 			
 			elif choice == 'sword':
 				#create a sword
@@ -1039,10 +1058,18 @@ def check_level_up():
 		
 def handle_keys():
 	global key
+	global DEBUG
 	
 	if key.vk == libtcod.KEY_ENTER and key.lalt:
 		#Alt+Enter: toggle fullscreen
 		libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+	
+	if key.vk == libtcod.KEY_ENTER and libtcod.KEY_UP:
+		#Debug Mode
+		if DEBUG == True:
+			DEBUG = False
+		else:
+			DEBUG = True
 	
 	elif key.vk == libtcod.KEY_ESCAPE:
 		return 'exit' #exit game
@@ -1089,6 +1116,7 @@ def handle_keys():
 			chosen_item = inventory_menu('Press the key next to an item to throw it, or anyother to cancel.\n')
 			if chosen_item is not None:
 				chosen_item.throw()
+				return
 				
 		else:
 			if key_char == '<':
@@ -1338,7 +1366,8 @@ def new_game():
 	
 	#opening game message
 	message('You fall through a hole in the ground. It\'s dark you should light a torch.', libtcod.red)
-
+	message('Press [i] to access your inventory, [g] to get, [t] to thow, [d] to drop, [c] for character screen', libtcod.red)
+	
 	#initial equipment: a dagger
 	equipment_component = Equipment(slot='right hand', power_bonus=2)
 	obj = Object(0, 0, '-', 'dagger', libtcod.sky, equipment=equipment_component)
