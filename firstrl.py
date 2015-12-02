@@ -9,6 +9,7 @@ import libtcodpy as libtcod
 import math
 import textwrap
 import shelve
+import time
 
 #actual size of the window
 SCREEN_WIDTH = 140 
@@ -471,8 +472,8 @@ def get_all_equipped(obj): #return a list of equipped items
 def create_room(room, map):
 
 	#go through the tiles in the rectangle and make them passable
-	for x in range(room.x1 + 1, room.x2):
-		for y in range(room.y1 + 1, room.y2):
+	for x in range(room.x1 + 1, room.x2 - 1):
+		for y in range(room.y1 + 1, room.y2 - 1):
 			map[x][y].blocked = False
 			map[x][y].block_sight = False
 
@@ -532,9 +533,9 @@ def make_map():
 	yup1 = 1
 	yup2 = 1
 	yup3 = 1
-	w = 5
-	h = 5
-	map_type = 1 #libtcod.random_get_int(0, 0, 1)
+	w = 7
+	h = 7
+	map_type = 1 #libtcod.random_get_int(0, 0, 3)
 	
 	for r in range(MAX_ROOMS):
 		
@@ -548,48 +549,49 @@ def make_map():
 			y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
 		
 		else:
-			w = libtcod.random_get_int(0, 3, 7)
+			w = libtcod.random_get_int(0, 5, 9)
 			h = w
 			for t in range(0, 3): # run generation three times to make the rooms
 				flip = libtcod.random_get_int(0, 0, 3) # pick one of 4 directions, once the direction is used eliminate that choice so there are not stright runs.
 				if flip == 0 and pick !=flip and yup0 == 1:
-					x = x - w - 1
-					y = y - h - 1
+					x = x - w #- 1
+					y = y - h #- 1
 					yup0 = -1 # use up this direction
 				
 				if flip == 1 and pick !=flip  and yup1 == 1:
-					x = x + w + 1
-					y = y - h - 1
+					x = x + w #+ 1
+					y = y - h #- 1
 					yup1 = -1 # use up this direction
 					
 				if flip == 2 and pick !=flip  and yup2 == 1:
-					x = x - w - 1
-					y = y + h + 1
+					x = x - w #- 1
+					y = y + h #+ 1
 					yup2 = -1 # use up this direction
 					
 				if flip == 3 and pick !=flip  and yup3 == 1:
-					x = x + w + 1
-					y = y + h + 1
+					x = x + w #+ 1
+					y = y + h #+ 1
 					yup3 = -1 # use up this direction
 				#
+				multi = 2
 				if flip == 0 and pick ==flip and yup0 == 1:
-					x = x - 2 * w  - 1
-					y = y - 2 * h  - 1
+					x = x - multi * w  #- 1
+					y = y - multi * h  #- 1
 					yup0 = -1 # use up this direction
 				
 				if flip == 1 and pick ==flip  and yup1 == 1:
-					x = x + 2 * w + 1
-					y = y - 2 * h - 1
+					x = x + multi * w #+ 1
+					y = y - multi * h #- 1
 					yup1 = -1 # use up this direction
 					
 				if flip == 2 and pick ==flip  and yup2 == 1:
-					x = x - 2 * w - 1
-					y = y + 2 * h + 1
+					x = x - multi * w #- 1
+					y = y + multi * h #+ 1
 					yup2 = -1 # use up this direction
 					
 				if flip == 3 and pick ==flip  and yup3 == 1:
-					x = x + 2 * w + 1
-					y = y + 2 * h + 1
+					x = x + multi * w #+ 1
+					y = y + multi * h #+ 1
 					yup3 = -1 # use up this direction
 				
 				if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1: #reset avaliable directions.
@@ -673,13 +675,14 @@ def place_objects(room):
 	max_monsters = from_dungeon_level([ [2, 1], [3, 2], [4, 3], [5,4] ])
 	
 	# chance of each monster. in the format of [%chance, level]
-	monster_chances = {}
-	monster_chances['orc'] = 80 #orc always shows up, even if all other monsters have 0 chance
-	monster_chances['troll'] = from_dungeon_level([ [15, 2], [30, 3], [60, 4], [100, 5] ])
-	monster_chances['snake'] = from_dungeon_level([ [50, 1], [40, 2], [20, 4], [10, 5] ])
-	monster_chances['trap'] = 50
-	monster_chances['bandit'] = 100
-	
+		
+	monster_chances = 	{
+						'orc' : 80, #orc always shows up, even if all other monsters have 0 chance
+						'troll' : from_dungeon_level([ [15, 2], [30, 3], [60, 4], [100, 5] ]),
+						'snake' : from_dungeon_level([ [50, 1], [40, 2], [20, 4], [10, 5] ]),
+						'trap' : 50,
+						'bandit' : 100,
+						}
 		
 	# choose random number of monsters
 	num_monsters = libtcod.random_get_int(0, 0, max_monsters)
@@ -814,7 +817,8 @@ def place_objects(room):
 				power_bonus=10
 				equipment_component = Equipment(slot='right hand',  power_bonus=power_bonus, max_hp_bonus=30)
 				item = Object(x, y, '7', 'axe of awesome +%d' % power_bonus, libtcod.darker_blue, equipment=equipment_component)
-
+			
+			# have torch take hand slot
 			# elif choice == 'torch':
 				# #create a torch
 				# equipment_component = Equipment(slot='hand')
@@ -897,9 +901,10 @@ def menu(header, options, width):
 	y = SCREEN_HEIGHT/2 - height/2
 	libtcod.console_blit(window, 0, 0, width, height, 0, x, y, 1.0, 0.7) # last two items show the foreground and back ground transparency
 	
-	#present the root console to the playe and wait for a key-press
+	#present the root console to the player and wait for a key-press
 	libtcod.console_flush()
 	key = libtcod.console_wait_for_keypress(True)
+	#key = libtcod.sys_wait_for_event()#this should be used at some point, just don't know how to use it. http://roguecentral.org/doryen/data/libtcod/doc/1.5.2/html2/console_blocking_input.html
 	
 	if key.vk == libtcod.KEY_ENTER and key.lalt: # special case alt+enter toggle full screen
 		libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
