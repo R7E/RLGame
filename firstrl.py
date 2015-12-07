@@ -543,14 +543,14 @@ def make_map():
 	x_old = x
 	y_old = y
 	
-	map_type = libtcod.random_get_int(0, 0, 2) #new_x error happens, can't figure out what is going on.
+	map_type = libtcod.random_get_int(0, 0, 0) #new_x error happens, can't figure out what is going on.
 	
 	#for r in range(MAX_ROOMS):
 	while num_rooms < 50:	
 		if map_type == 0:
 			#random width and height
-			w = libtcod.random_get_int(0, 10, 15)
-			h = libtcod.random_get_int(0, 20, 15)
+			w = libtcod.random_get_int(0, 1, 11)
+			h = libtcod.random_get_int(0, 1, 11)
 			
 			#random position
 			x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2) # minus 2 is to make the edge of the room not run over the map edge.
@@ -1357,10 +1357,6 @@ def player_death(player):
 	player.char = '@'
 	player.color = libtcod.dark_red
 	
-	
-	libtcod.console_set_default_foreground(0, libtcod.light_yellow)
-	libtcod.console_print_ex(0, SCREEN_WIDTH/2, SCREEN_HEIGHT/2-4, libtcod.BKGND_NONE, libtcod.CENTER,
-		'You have died')
 		
 	
 def monster_death(monster):
