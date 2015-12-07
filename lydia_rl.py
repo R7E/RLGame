@@ -11,7 +11,7 @@ It's in the public domain.
 ###
 
 import os
-
+import time
 import libtcodpy as libtcod
 
 ###
@@ -20,6 +20,7 @@ import libtcodpy as libtcod
 
 def get_key(key): #handle keyboard input, uses strings to get keyboard input
 	if key.vk == libtcod.KEY_CHAR:
+		
 		return chr(key.c)
 	else:
 		return key.vk
@@ -172,6 +173,7 @@ libtcod.console_init_root(window_width, window_height, 'Python Tutorial', False)
 while not libtcod.console_is_window_closed():
 	draw(first)
 	libtcod.console_flush()
+	time.sleep(.1) #artificially reduce fps
 	key  = libtcod.console_wait_for_keypress(True)
 	update(key)
 	if key.vk == libtcod.KEY_ESCAPE:
