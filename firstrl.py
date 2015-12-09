@@ -543,7 +543,7 @@ def make_map():
 	x_old = x
 	y_old = y
 	
-	map_type = libtcod.random_get_int(0, 0, 0) #new_x error happens, can't figure out what is going on.
+	map_type = libtcod.random_get_int(0, 0, 3) #new_x error happens, can't figure out what is going on.
 	
 	#for r in range(MAX_ROOMS):
 	while num_rooms < 50:	
@@ -1119,11 +1119,14 @@ def handle_keys():
 	global key
 	global DEBUG
 	
+	#test for other keys
+	key_char = chr(key.c)
+	
 	if key.vk == libtcod.KEY_ENTER and key.lalt:
 		#Alt+Enter: toggle fullscreen
 		libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
 	
-	if key.vk == libtcod.KEY_ENTER and libtcod.KEY_UP:
+	if key_char == '~':
 		#Debug Mode
 		if DEBUG == True:
 			DEBUG = False
@@ -1134,9 +1137,6 @@ def handle_keys():
 		return 'exit' #exit game
 		
 	if game_state == 'playing':
-		
-		#test for other keys
-		key_char = chr(key.c)
 		
 		# movement keys
 		if key.vk == libtcod.KEY_UP or key.vk == libtcod.KEY_KP8:
@@ -1213,7 +1213,8 @@ def get_names_under_mouse():
 	
 	#create a list with the names of all objects at the mouse's coordinates and in FOV
 	names = [obj.name for obj in objects
-		if obj.x == x and obj.y == y and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
+		if (obj.x == x and obj.y == y) or (obj.x == player.x and obj.y == player.y) and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
+		
 		
 	names = ', '.join(names) #join the names, separated by commas
 	return names.capitalize()
