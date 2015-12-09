@@ -9,10 +9,11 @@ import libtcodpy as libtcod
 import math
 import textwrap
 import shelve
+import time
 
 #actual size of the window
-SCREEN_WIDTH = 140 
-SCREEN_HEIGHT = 80
+SCREEN_WIDTH = 70 
+SCREEN_HEIGHT = 40
 
 #GUI panel size
 BAR_WIDTH = 20
@@ -28,7 +29,7 @@ MAP_HEIGHT = 80
 
 INVENTORY_WIDTH = 50
 
-LIMIT_FPS = 20 #max frames per second
+LIMIT_FPS = 15 #max frames per second
 
 #size fo map that is visible on screen
 CAMERA_WIDTH = SCREEN_WIDTH
@@ -36,9 +37,9 @@ CAMERA_HEIGHT = SCREEN_HEIGHT - PANEL_HEIGHT
 
 
 #room generation
-ROOM_MAX_SIZE = 13
+ROOM_MAX_SIZE = 10
 ROOM_MIN_SIZE = 3
-MAX_ROOMS = 100
+MAX_ROOMS = 200
 
 
 FOV_ALGO = 0 #defalut FOV algorithm
@@ -53,6 +54,7 @@ CONFUSE_NUM_TURNS = 10
 CONFUSE_RANGE = 8
 FIREBALL_DAMAGE = 25
 FIREBALL_RADIUS = 3
+TORCH_RADIUS = 3 #fix for save game crash. This variable doesn't get stored on save.
 
 #experience and level-up
 LEVEL_UP_BASE = 200
@@ -65,7 +67,6 @@ color_light_ground = libtcod.Color(200, 180, 50)
 
 DEBUG =  False #if you want to not have the FOV block the items and monsters, abillity to heal with "+"
 
-#good
 class Tile:
 	#a tile of the map and its properties
 	def __init__(self, blocked, block_sight = None):
@@ -82,7 +83,6 @@ class Tile:
 		self.block_sight = block_sight
 		
 
-#good
 class Rect:
 	#a rectangle on the map. used to characterize a room.
 	def __init__(self, x, y, w, h):
@@ -106,7 +106,8 @@ class Object:
 	# this is a generic object: the player, a monster, an item, the stairs...
 	# it's always represented by a character on screen.
 	
-	def __init__(self, x, y, char, name, color, blocks=False, always_visible=False, fighter=None, ai=None, item=None, equipment=None):
+	def __init__(self, x, y, char, name, color, blocks=False, always_visible=False, fighter=None,
+					ai=None, item=None, equipment=None, block_sight=False):
 		self.x = x
 		self.y = y
 		self.char = char
@@ -114,6 +115,10 @@ class Object:
 		self.color = color
 		self.blocks = blocks
 		self.always_visible = always_visible
+		
+		self.block_sight = block_sight
+		if self.block_sight: #let the sight component know who owns it
+			self.block_sight.owner = self
 		
 		self.fighter = fighter
 		if self.fighter: #let the fighter component know who owns it
@@ -136,14 +141,14 @@ class Object:
 		
 	def move(self, dx, dy):
 		# move b the given amount
-		if not is_blocked(self.x + dx, self.y + dy):
+		if not is_blocked(self.x + dx, self.y + dy, map):
 			self.x += dx
 			self.y += dy
 		
 	def move_towards(self, target_x, target_y):
 		dx = target_x - self.x
 		dy = target_y - self.y
-		#if not is_blocked(self.x + dx, self.y + dy):
+		
 		if dx > 0:
 			dx = 1
 		if dx < 0:
@@ -168,10 +173,10 @@ class Object:
 		self.moveai(dx, dy)
 	
 	def moveai(self, dx, dy): # causes monsters to line up in a row if there are a lot.
-		if not is_blocked(self.x, self.y + dy):
+		if not is_blocked(self.x, self.y + dy, map):
 			self.y += dy
 		
-		if not is_blocked(self.x + dx, self.y):
+		if not is_blocked(self.x + dx, self.y, map):
 			self.x += dx		
 		
 	def distance_to(self, other):
@@ -271,11 +276,11 @@ class BasicMonster:
 		monster = self.owner
 		
 		#message for hearing monster just outside of your torch radius (will listen thorugh walls)
-		if monster.distance_to(player) >= 10 and monster.distance_to(player) <= 12:
+		if monster.distance_to(player) >= TORCH_RADIUS and monster.distance_to(player) <= 12:
 			message('You hear a ' + self.owner.name + ' move around!', libtcod.red)
 			
 		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
-		if	monster.distance_to(player)<= 14:
+		if	monster.distance_to(player)<= 5:
 			
 			#move towards player if far away
 			if monster.distance_to(player)>= 2:
@@ -288,6 +293,42 @@ class BasicMonster:
 		else: # wander aimlessly
 			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
 
+class Trap:
+	#AI for a basic monster.
+	def take_turn(self):
+		#a basic monster takes its turn. If you can see it, it can see you
+		monster = self.owner
+					
+		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+		if	monster.distance_to(player)<= 2: # basic range should be part of a ranged attack for monster 
+			if player.fighter.hp > 0:
+				monster.fighter.attack(player)
+				
+				
+class RangedMonster:
+	#AI for a basic monster.
+	def take_turn(self):
+		#a basic monster takes its turn. If you can see it, it can see you
+		monster = self.owner
+		
+		#message for hearing monster just outside of your torch radius (will listen thorugh walls)
+		if monster.distance_to(player) >= TORCH_RADIUS and monster.distance_to(player) <= 12:
+			message('You hear a ' + self.owner.name + ' move around!', libtcod.red)
+			
+		#if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+		if	monster.distance_to(player)<= 5:
+			
+			#move towards player if far away
+			if monster.distance_to(player)>= 3: #Range is 2
+				monster.move_towards(player.x, player.y)
+				
+			#close enough, shoot at the player (if the player is still alive.)
+			elif player.fighter.hp > 0:
+				monster.fighter.attack(player)
+				
+		else: # wander aimlessly
+			self.owner.move(libtcod.random_get_int(0, -1, 1), libtcod.random_get_int(0, -1, 1))
+		
 
 class ConfusedMonster:
 	#AI for a temporarily confused monster (reverts to previous AI after a while.)
@@ -305,13 +346,17 @@ class ConfusedMonster:
 			message('The ' + self.owner.name + ' is no longer confused!', libtcod.red)
 
 # example of switching states of AI rather than using classes for permanent things
-# class DragonAI:
-	# def __init__(self):
-		# self.state = 'chasing'
+class DragonAI:# incomplete!!!!!!!!!!!!!!!!!!
+	def __init__(self):
+		self.state = 'chasing'
 		
-	# def take_turn(self):
-		# if self.state == 'chasing': # something...
-		# elif self.state == 'charging-fire-breath': # something...
+	def take_turn(self):
+		if self.state == 'chasing':
+			if monster.distance_to(player)>= 3: #Range is 2
+				monster.move_towards(player.x, player.y)
+			
+		elif self.state == 'charging-fire-breath': # something...
+			message('The ' + self.owner.name + ' is charging!', libtcod.red)
 
 class Item:
 	#an item that can be picked up and used.
@@ -341,6 +386,9 @@ class Item:
 			if self.use_function() != 'cancelled':
 				inventory.remove(self.owner) # destroy after use, unless it was cancelled for some reason
 				fov_recompute = True
+			else:
+				message('The ' + self.owner.name + ' placed back in inventory.')
+				
 		#special case: if the object has the Equipment component, the "use" action is to equip/dequip
 		if self.owner.equipment:
 			self.owner.equipment.toggle_equip()
@@ -358,9 +406,30 @@ class Item:
 		#special case: if the object has the Equipment component, dequip it before dropping
 		if self.owner.equipment:
 			self.owner.equipment.dequip()
+			
+	def throw(self):
+		# throw an object
+		message('Left-click a target tile throw, or right-click to cancel.', libtcod.light_cyan)
+		(x, y) = target_tile()
+		if x is None: return 'cancelled' # cancel if tile no tile targeted in the x position
+		
+		if is_occupied(x, y, map):
+			message('You cannot throw a ' + self.owner.name + ' there.', libtcod.orange)
+			return 'cancelled'
+		else:
+			message('You throw a ' + self.owner.name + '!', libtcod.orange)
+			objects.append(self.owner) # place item in objects list
+			inventory.remove(self.owner) # take item out of player inventory
+			#assign item to location
+			self.owner.x = x
+			self.owner.y = y
+			for obj in objects: #damage every fighter in range, including the player
+				if obj.distance(x, y) <= 0 and obj.fighter:
+					message('The ' + obj.name + ' gets hit by a ' + self.owner.name + ' for ' + str(2) + ' points!', libtcod.orange)
+					obj.fighter.take_damage(2)
 
 class Equipment:
-	#an object tha tcan be equipped, yeilding bonuses. automatically adds the item component.
+	#an object that can be equipped, yeilding bonuses. automatically adds the item component.
 	def __init__(self, slot, power_bonus=0, defense_bonus=0, max_hp_bonus=0):
 		self.power_bonus = power_bonus
 		self.defense_bonus = defense_bonus
@@ -401,29 +470,36 @@ def get_all_equipped(obj): #return a list of equipped items
 	else:
 		return [] #other objects have no equipment. if you want to have monster have equipment duplicate player.
 			
-def create_room(room):
-	global map
+def create_room(room, map):
+
 	#go through the tiles in the rectangle and make them passable
-	for x in range(room.x1 + 1, room.x2):
-		for y in range(room.y1 + 1, room.y2):
+	for x in range(room.x1 + 1, room.x2 - 1):
+		for y in range(room.y1 + 1, room.y2 - 1):
 			map[x][y].blocked = False
 			map[x][y].block_sight = False
 
-def create_h_tunnel(x1, x2, y):
-	global map
+def create_h_tunnel(x1, x2, y, map):
+
 	#horrizontial tunnel
 	for x in range(min(x1, x2), max(x1, x2) +1):
 		map[x][y].blocked = False
 		map[x][y].block_sight = False
 	
-def create_v_tunnel(y1, y2, x):
-	global map
+def create_v_tunnel(y1, y2, x, map):
+	
 	#vertical tunnel
 	for y in range(min(y1, y2), max(y1, y2) + 1):
 		map[x][y].blocked = False
 		map[x][y].block_sight = False
 
-def is_blocked(x, y):
+def is_occupied(x, y, map):
+	#test the map tile to see if it is blocked
+	if map[x][y].blocked:		
+		return True # if the tile is blocked return true
+		
+	return False		
+		
+def is_blocked(x, y, map):
 	#first test the map tile
 	if map[x][y].blocked:		
 		return True
@@ -431,7 +507,7 @@ def is_blocked(x, y):
 	#now check for any blocking objects
 	for object in objects:
 		if object.blocks and object.x == x and object.y == y:
-			return True
+			return True #if there is already a blocking object on the tile return true
 			
 	return False		
 
@@ -458,82 +534,127 @@ def make_map():
 	yup1 = 1
 	yup2 = 1
 	yup3 = 1
-	w = 5
-	h = 5
-	map_type = libtcod.random_get_int(0, 0, 1)
+	h = 7
+	w = 7
+	h1 = h
+	h2 = h
+	w1 = w
+	w2 = w
+	x_old = x
+	y_old = y
 	
-	for r in range(MAX_ROOMS):
-		
+	map_type = libtcod.random_get_int(0, 0, 3) #new_x error happens, can't figure out what is going on.
+	
+	#for r in range(MAX_ROOMS):
+	while num_rooms < 50:	
 		if map_type == 0:
 			#random width and height
-			w = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
-			h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
+			w = libtcod.random_get_int(0, 1, 11)
+			h = libtcod.random_get_int(0, 1, 11)
 			
 			#random position
-			x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2)
+			x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 2) # minus 2 is to make the edge of the room not run over the map edge.
 			y  = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 2)
 		
+		elif map_type == 1:
+			w = libtcod.random_get_int(0, 5, 7)
+			h = w
+			
+			#define points
+			if num_rooms == 0:
+				x_old = x
+				y_old = y
+			else:
+				step = 1
+				x = x_old #+ w + step
+				y = y_old #+ h + step
+				
+				y_up = y_old - h2 - step
+				y_down = y_old + h1 + step
+				x_left = x_old - w2 - step
+				x_right = x_old + w1 + step
+				
+				
+				#random direction
+				pick = libtcod.random_get_int(0,0,3)
+				
+				if pick == 0:
+					#pick up
+					y = y_up
+				if pick == 1:
+					#pick down
+					y = y_down
+				if pick == 2:
+					#pick left
+					x = x_left
+				if pick == 3:
+					#pick right
+					x = x_right
+				y_old = y
+				x_old = x
+			
+			
 		else:
-			for t in range(0, 3):
-				flip = libtcod.random_get_int(0, 0, 3)
+			w = libtcod.random_get_int(0, 5, 9)
+			h = w
+			for t in range(0, 3): # run generation three times to make the rooms
+				flip = libtcod.random_get_int(0, 0, 3) # pick one of 4 directions, once the direction is used eliminate that choice so there are not stright runs.
 				if flip == 0 and pick !=flip and yup0 == 1:
-					x = x - w - 1
-					y = y - h - 1
-					yup0 = -1
+					x = x - w #- 1
+					y = y - h #- 1
+					yup0 = -1 # use up this direction
 				
 				if flip == 1 and pick !=flip  and yup1 == 1:
-					x = x + w + 1
-					y = y - h - 1
-					yup1 = -1
+					x = x + w #+ 1
+					y = y - h #- 1
+					yup1 = -1 # use up this direction
 					
 				if flip == 2 and pick !=flip  and yup2 == 1:
-					x = x - w - 1
-					y = y + h + 1
-					yup2 = -1	
+					x = x - w #- 1
+					y = y + h #+ 1
+					yup2 = -1 # use up this direction
 					
 				if flip == 3 and pick !=flip  and yup3 == 1:
-					x = x + w + 1
-					y = y + h + 1
-					yup3 = -1
+					x = x + w #+ 1
+					y = y + h #+ 1
+					yup3 = -1 # use up this direction
 				#
+				multi = 2
 				if flip == 0 and pick ==flip and yup0 == 1:
-					x = x - 2 * w  - 1
-					y = y - 2 * h  - 1
-					yup0 = -1
+					x = x - int(multi * w)  #- 1
+					y = y - int(multi * h)  #- 1
+					yup0 = -1 # use up this direction
 				
 				if flip == 1 and pick ==flip  and yup1 == 1:
-					x = x + 2 * w + 1
-					y = y - 2 * h - 1
-					yup1 = -1
+					x = x + int(multi * w) #+ 1
+					y = y - int(multi * h) #- 1
+					yup1 = -1 # use up this direction
 					
 				if flip == 2 and pick ==flip  and yup2 == 1:
-					x = x - 2 * w - 1
-					y = y + 2 * h + 1
-					yup2 = -1	
+					x = x - int(multi * w) #- 1
+					y = y + int(multi * h) #+ 1
+					yup2 = -1 # use up this direction
 					
 				if flip == 3 and pick ==flip  and yup3 == 1:
-					x = x + 2 * w + 1
-					y = y + 2 * h + 1
-					yup3 = -1
+					x = x + int(multi * w) #+ 1
+					y = y + int(multi * h) #+ 1
+					yup3 = -1 # use up this direction
 				
-				if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1:
+				if yup0 == -1 and  yup1 == -1 and yup2 == -1 and  yup3 == -1: #reset avaliable directions.
 					yup0 = 1
 					yup1 = 1
 					yup2 = 1
 					yup3 = 1
 							
 				pick = flip 
+		# if the generation comes up with rooms outside of the map place a different room start again
+		if x < 2 or x >= MAP_WIDTH - w - 2:
+			break
+		if y < 2 or y >= MAP_HEIGHT - h - 2:
+			break
 			
-		if x >= MAP_WIDTH - w - 2:
-			x = libtcod.random_get_int(0, 2, MAP_WIDTH - w - 2)
-		if y >= MAP_HEIGHT - h - 2:
-			y  = libtcod.random_get_int(0, 2, MAP_HEIGHT - h - 2)
-			
-		
 		#"Rect" class makes rectangles easier to work with
 		new_room = Rect(x, y, w, h)
-		
-		
 		
 		#run through the other rooms and see if they intersect with this one
 		failed = False
@@ -546,7 +667,7 @@ def make_map():
 			#this means there are no intersections, so this room is valid
 				
 			# "paint" it to the map's tiles
-			create_room(new_room)
+			create_room(new_room, map)
 			
 			#add some contents to this room, such as monsters
 			place_objects(new_room)
@@ -554,10 +675,11 @@ def make_map():
 			#center coordinates of new room, will be useful later
 			(new_x, new_y) = new_room.center()
 			
-			# # optional: print "room number to see how the map drawing worked
-			# # we may have more than ten rooms, so print 'A' for the first room, 'B' for the next...
-			# room_no = Object(new_x, new_y, chr(65+num_rooms), 'room number', libtcod.white) # fails if more than 62 rooms
-			# objects.insert(0, room_no) #draw early, so monsters are drawn on top
+			if DEBUG:
+				# optional: print "room number to see how the map drawing worked
+				# we may have more than ten rooms, so print 'A' for the first room, 'B' for the next...
+				room_no = Object(new_x, new_y, chr(65+num_rooms), 'room number', libtcod.white) # fails if more than 62 rooms
+				objects.insert(0, room_no) #draw early, so monsters are drawn on top
 				
 			if num_rooms == 0:
 					#this is the first room, where the player starts at
@@ -574,13 +696,13 @@ def make_map():
 				#draw a coin (random number that is either 0 or 1)
 				if libtcod.random_get_int(0, 0, 1) == 1:
 					#first move horizontally, then vertically
-					create_h_tunnel(prev_x, new_x, prev_y)
-					create_v_tunnel(prev_y, new_y, new_x)
+					create_h_tunnel(prev_x, new_x, prev_y, map)
+					create_v_tunnel(prev_y, new_y, new_x, map)
 						
 				else:
 					#first move vertically, then horizontally
-					create_v_tunnel(prev_y, new_y, prev_x)
-					create_h_tunnel(prev_x, new_x, new_y)
+					create_v_tunnel(prev_y, new_y, prev_x, map)
+					create_h_tunnel(prev_x, new_x, new_y, map)
 						
 			#finally, append the new room to the list
 			rooms.append(new_room)
@@ -594,30 +716,18 @@ def make_map():
 def place_objects(room):
 	
 	# maximum number of monsters per room. in thr format of [number, level]
-	max_monsters = from_dungeon_level([ [2, 1], [3, 2], [4, 3], [5,4] ])
+	max_monsters = from_dungeon_level([ [2, 1], [3, 3], [4, 6], [5,10] ])
 	
 	# chance of each monster. in the format of [%chance, level]
-	monster_chances = {}
-	monster_chances['orc'] = 80 #orc always shows up, even if all other monsters have 0 chance
-	monster_chances['troll'] = from_dungeon_level([ [15, 2], [30, 3], [60, 4], [100, 5] ])
-	monster_chances['snake'] = from_dungeon_level([ [50, 1], [40, 2], [20, 4], [10, 5] ])
-	
-	# maximum number of items per room in the format of [%chance, level]
-	max_items = from_dungeon_level([[2, 1], [3, 2], [2, 3], [2, 4], [5, 5], [6, 8], [7, 10] ])
-	
-	# chance of each item (by default they have a chance of 0 at level 1, which then goes up)
-	item_chances = {}
-	item_chances['heal'] = 35 #healing potion always shows up, even if all other items have 0 chance
-	item_chances['lightning'] = from_dungeon_level([[1, 1], [25, 4]])
-	item_chances['fireball'] = from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
-	item_chances['confuse'] = from_dungeon_level([[1, 1], [1, 1], [25,2]])
-	item_chances['sword'] = from_dungeon_level([[1, 1], [3,2]])
-	item_chances['shield'] = from_dungeon_level([[1, 1], [2,3]])
-	item_chances['axe'] = from_dungeon_level([[1, 1], [2,3]])
-	item_chances['AXE OF AWESOME'] = from_dungeon_level([[1,5]])
-	item_chances['torch'] = 20
-	item_chances['dagger'] = from_dungeon_level([[1, 1]])
-	
+		
+	monster_chances = 	{
+						'orc' : 80, #orc always shows up, even if all other monsters have 0 chance
+						'troll' : from_dungeon_level([ [15, 2], [30, 3], [60, 4], [100, 5] ]),
+						'snake' : from_dungeon_level([ [50, 1], [40, 2], [20, 4], [10, 5] ]),
+						'trap' : 50,
+						'bandit' : 50,
+						}
+		
 	# choose random number of monsters
 	num_monsters = libtcod.random_get_int(0, 0, max_monsters)
 	for i in range(num_monsters):
@@ -626,19 +736,19 @@ def place_objects(room):
 		y = libtcod.random_get_int(0, room.y1+1, room.y2-1)
 		
 		# only place it if the tile is not blocked
-		if not is_blocked(x, y):
+		if not is_blocked(x, y, map):
 			choice = random_choice(monster_chances) 
 			if choice == 'orc':
 				# create orc
 				fighter_component = Fighter(hp=libtcod.random_get_int(0, 15, 25), defense=0, power=4, xp=25, death_function=monster_death)
 				ai_component = BasicMonster()
-				
+			
 				monster = Object(x, y, 'o', 'orc', libtcod.desaturated_green,
 					blocks=True, fighter=fighter_component, ai=ai_component)
-					
+				
 			elif choice == 'troll':
 				# create a troll
-				fighter_component = Fighter(hp=30, defense=libtcod.random_get_int(0, 1, 5), power=libtcod.random_get_int(0, 4, 10), xp=50, death_function=monster_death)
+				fighter_component = Fighter(hp=30 + dungeon_level^2, defense=libtcod.random_get_int(0, 1, 5), power=libtcod.random_get_int(0, 4, 10), xp=50, death_function=monster_death)
 				ai_component = BasicMonster()
 								
 				monster = Object(x, y, 'T', 'troll', libtcod.darker_green,
@@ -646,26 +756,49 @@ def place_objects(room):
 					
 			elif choice == 'snake':
 				# create a snake
-				fighter_component = Fighter(hp=5, defense=0, power=4, xp=5, death_function=monster_death)
+				fighter_component = Fighter(hp=5, defense=0, power=5 + dungeon_level, xp=5 + dungeon_level, death_function=monster_death)
 				ai_component = BasicMonster()
 				
 				monster = Object(x, y, 's', 'snake', libtcod.desaturated_green,
 					blocks=True, fighter=fighter_component, ai=ai_component)
-				
 					
-			# elif choice == 'bandit':
-				# # create a bandit
-				# fighter_component = Fighter(hp=5, defense=2, power=4, xp=50, death_function=monster_death)
-				# ai_component = BasicMonster()
+			elif choice == 'trap':
+				# create a trap
+				fighter_component = Fighter(hp=2, defense=0, power=4 + dungeon_level, xp=5, death_function=monster_death)
+				ai_component = Trap()
 				
-				# monster = Object(x, y, 'b', 'bandit', libtcod.darker_green,
-					# blocks=True, fighter=fighter_component, ai=ai_component)
+				monster = Object(x, y, '.', 'trap', libtcod.desaturated_green,
+					blocks=True, fighter=fighter_component, ai=ai_component)	
+					
+			elif choice == 'bandit':
+				# create a bandit
+				fighter_component = Fighter(hp=5 + dungeon_level, defense=2, power=libtcod.random_get_int(0,1,10), xp=10, death_function=monster_death)
+				ai_component = RangedMonster()
+				
+				monster = Object(x, y, 'b', 'bandit', libtcod.darker_green,
+					blocks=True, fighter=fighter_component, ai=ai_component)
 					
 			objects.append(monster)
 			if DEBUG == True:
 				monster.always_visible = True
 			
-			
+	# maximum number of items per room in the format of [%chance, level]
+	max_items = from_dungeon_level([[1, 1], [1, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])
+	
+	# chance of each item (by default they have a chance of 0 at level 1, which then goes up)
+	item_chances = {}
+	item_chances['heal'] = 			from_dungeon_level([[45, 1], [3, 2], [3, 3], [4, 4], [6, 5], [7, 8], [8, 10] ])#25 #healing potion always shows up, even if all other items have 0 chance
+	item_chances['lightning'] = 	from_dungeon_level([[0, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [25, 4]])
+	item_chances['fireball'] = 		from_dungeon_level([[0, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [1, 2], [25, 3], [25, 4]])
+	item_chances['confuse'] = 		from_dungeon_level([[0, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [1, 1], [25,2]])
+	item_chances['sword'] = 		from_dungeon_level([[1, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#from_dungeon_level([[1, 1], [3,2]])
+	item_chances['shield'] = 		from_dungeon_level([[0, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 8], [1, 10] ])#from_dungeon_level([[1, 1], [2,3]])
+	item_chances['axe'] = 			from_dungeon_level([[0, 1], [0, 2], [1, 3], [0, 4], [0, 5], [1, 8], [1, 10] ])#from_dungeon_level([[1, 1], [2,3]])
+	item_chances['AXE OF AWESOME'] = from_dungeon_level([[0, 1], [0, 2], [0, 3], [0, 4], [1, 5], [0, 8], [1, 10] ])#from_dungeon_level([[1,5]])
+	item_chances['torch'] = 		from_dungeon_level([[50, 1], [3, 2], [2, 3], [3, 4], [2, 5], [2, 8], [2, 10] ])#10
+	item_chances['dagger'] = 		from_dungeon_level([[1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 8], [1, 10] ])#from_dungeon_level([[1, 1]])
+	item_chances['gold'] = 			from_dungeon_level([[2, 1], [3, 2], [2, 3], [3, 4], [5, 5], [6, 8], [7, 10] ])#3
+	
 	# choose random number of itmes
 	num_items = libtcod.random_get_int(0, 0, max_items)
 	for i in range(num_items):
@@ -674,7 +807,7 @@ def place_objects(room):
 		y = libtcod.random_get_int(0, room.y1+1, room.y2-1)
 		
 		# only place an item if the tile is not blocked
-		if not is_blocked(x, y):
+		if not is_blocked(x, y, map):
 			choice = random_choice(item_chances)
 			if choice == 'heal':
 				# create a healing potion
@@ -701,35 +834,54 @@ def place_objects(room):
 				item_component = Item(use_function=light_torch)
 				item = Object(x, y, 'i', 'torch', libtcod.darker_orange, item=item_component)
 			
+			elif choice == 'gold':
+				# create a torch light
+				item_component = Item(use_function=None)
+				item = Object(x, y, '$', 'gold', libtcod.yellow, item=item_component)
 			
 			elif choice == 'sword':
 				#create a sword
-				equipment_component = Equipment(slot='hand', power_bonus=4)
-				item = Object(x, y, '/', 'sword', libtcod.sky, equipment=equipment_component)
+				power_bonus=4 + libtcod.random_get_int(0,-2, 2)
+				equipment_component = Equipment(slot='right hand', power_bonus = power_bonus)
+				item = Object(x, y, '/', 'sword +%d' % power_bonus, libtcod.sky, equipment=equipment_component)
 			
 			elif choice == 'shield':
 				#create a shield
-				equipment_component = Equipment(slot='hand', defense_bonus=1)
+				equipment_component = Equipment(slot='left hand', defense_bonus=1)
 				item = Object(x, y, '[', 'shield', libtcod.darker_orange, equipment=equipment_component)
-							
+			
+			elif choice == 'helmet':
+				#create a shield
+				equipment_component = Equipment(slot='head', defense_bonus=1)
+				item = Object(x, y, '[', 'helmet', libtcod.darker_orange, equipment=equipment_component)			
+			
+			elif choice == 'boots':
+				#create a shield
+				equipment_component = Equipment(slot='feet', defense_bonus=dungeon_level)
+				item = Object(x, y, '[', 'boots', libtcod.darker_orange, equipment=equipment_component)
+			
 			elif choice == 'axe':
 				#create an axe
-				equipment_component = Equipment(slot='hand', power_bonus=7)
-				item = Object(x, y, '7', 'axe', libtcod.black, equipment=equipment_component)
+				power_bonus=7 + libtcod.random_get_int(0,-2,2)
+				equipment_component = Equipment(slot='right hand', power_bonus = power_bonus)
+				item = Object(x, y, '7', 'axe +%d' % power_bonus, libtcod.black, equipment=equipment_component)
 				
 			elif choice == 'AXE OF AWESOME':
 				#create an axe
-				equipment_component = Equipment(slot='hand',  power_bonus=30, max_hp_bonus=30)
-				item = Object(x, y, '7', 'axe', libtcod.darker_orange, equipment=equipment_component)
-
+				power_bonus=10
+				equipment_component = Equipment(slot='right hand',  power_bonus=power_bonus, max_hp_bonus=30)
+				item = Object(x, y, '7', 'axe of awesome +%d' % power_bonus, libtcod.darker_blue, equipment=equipment_component)
+			
+			# have torch take hand slot
 			# elif choice == 'torch':
 				# #create a torch
 				# equipment_component = Equipment(slot='hand')
 				# item = Object(x, y, 'i', 'torch', libtcod.darker_orange, equipment=equipment_component)
 			
 			elif choice == 'dagger':
-				equipment_component = Equipment(slot='hand', power_bonus=2)
-				item = Object(x, y, '-', 'dagger', libtcod.sky, equipment=equipment_component)
+				power_bonus=2 + libtcod.random_get_int(0,-2,2)
+				equipment_component = Equipment(slot='right hand', power_bonus = power_bonus)
+				item = Object(x, y, '-', 'dagger +%d' % power_bonus, libtcod.sky, equipment=equipment_component)
 			
 			objects.append(item)
 			item.send_to_back()  #items appear below other objects
@@ -791,7 +943,7 @@ def menu(header, options, width):
 	
 	#print all the options
 	y = header_height
-	menu_index = ord('1') # use numbers instread of letters for menu
+	menu_index = ord('a') # use numbers instread of letters for menu
 	for option_text in options:
 		text = '(' +chr(menu_index) + ') ' + option_text
 		libtcod.console_print_ex(window, 0, y, libtcod.BKGND_NONE, libtcod.LEFT, text)
@@ -803,17 +955,18 @@ def menu(header, options, width):
 	y = SCREEN_HEIGHT/2 - height/2
 	libtcod.console_blit(window, 0, 0, width, height, 0, x, y, 1.0, 0.7) # last two items show the foreground and back ground transparency
 	
-	#present the root console to the playe and wait for a key-press
+	#present the root console to the player and wait for a key-press
 	libtcod.console_flush()
 	key = libtcod.console_wait_for_keypress(True)
+	#key = libtcod.sys_wait_for_event()#this should be used at some point, just don't know how to use it. http://roguecentral.org/doryen/data/libtcod/doc/1.5.2/html2/console_blocking_input.html
 	
 	if key.vk == libtcod.KEY_ENTER and key.lalt: # special case alt+enter toggle full screen
 		libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
 	
 	#convert the ACII code to an index; if it corresponds to an option, return it
-	index = key.c - ord('1')
+	index = key.c - ord('a')
 	if index >= 0 and index < len(options): 
-		return index
+			return index
 	return None
 	
 def render_all():
@@ -937,14 +1090,6 @@ def player_move_or_attack(dx,dy):
 	else:
 		player.move(dx, dy)
 	fov_recompute = True
-	
-	# #torch deminishing
-	# TORCH_RADIUS -=.1
-	# if TORCH_RADIUS <2:
-		# TORCH_RADIUS = 2
-	
-	
-		
 
 def check_level_up():
 	# see if the player's experiece is enough to level-up
@@ -972,18 +1117,26 @@ def check_level_up():
 		
 def handle_keys():
 	global key
+	global DEBUG
+	
+	#test for other keys
+	key_char = chr(key.c)
 	
 	if key.vk == libtcod.KEY_ENTER and key.lalt:
 		#Alt+Enter: toggle fullscreen
 		libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
 	
+	if key_char == '~':
+		#Debug Mode
+		if DEBUG == True:
+			DEBUG = False
+		else:
+			DEBUG = True
+	
 	elif key.vk == libtcod.KEY_ESCAPE:
 		return 'exit' #exit game
 		
 	if game_state == 'playing':
-		
-		#test for other keys
-		key_char = chr(key.c)
 		
 		# movement keys
 		if key.vk == libtcod.KEY_UP or key.vk == libtcod.KEY_KP8:
@@ -1016,6 +1169,14 @@ def handle_keys():
 			chosen_item = inventory_menu('Press the key next to an item to drop it, or anyother to cancel.\n')
 			if chosen_item is not None:
 				chosen_item.drop()
+				
+		elif key_char == 't':
+			#show the inventory; if an item is selected, throw it
+			chosen_item = inventory_menu('Press the key next to an item to throw it, or anyother to cancel.\n')
+			if chosen_item is not None:
+				chosen_item.throw()
+				return
+				
 		else:
 			if key_char == '<':
 				#go down stairs, if the player is on them
@@ -1052,7 +1213,8 @@ def get_names_under_mouse():
 	
 	#create a list with the names of all objects at the mouse's coordinates and in FOV
 	names = [obj.name for obj in objects
-		if obj.x == x and obj.y == y and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
+		if (obj.x == x and obj.y == y) or (obj.x == player.x and obj.y == player.y) and libtcod.map_is_in_fov(fov_map, obj.x, obj.y)]
+		
 		
 	names = ', '.join(names) #join the names, separated by commas
 	return names.capitalize()
@@ -1123,7 +1285,9 @@ def target_monster(max_range=None):
 		for obj in objects:
 			if obj.x == x and obj.y == y and obj.fighter and obj != player:
 				return obj
-			
+
+
+				
 def cast_fireball():
 	#ask the player for a target tile to throw a fireball at
 	message('Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan)
@@ -1195,6 +1359,7 @@ def player_death(player):
 	player.color = libtcod.dark_red
 	
 		
+	
 def monster_death(monster):
 	#transform into a corpse. It doesn't block, or attack, or move
 	message('The ' + monster.name.capitalize() + ' is dead! You gain ' + str(monster.fighter.xp) + ' experience points.', libtcod.orange)
@@ -1223,7 +1388,7 @@ def render_bar(x, y, total_width, name, value, maximum, bar_color, back_color):
 	if bar_width > 0:
 		libtcod.console_rect(panel, x, y, bar_width, 1, False, libtcod.BKGND_SCREEN)
 		
-	#finally, some centered text with th evalues
+	#finally, some centered text with the values
 	libtcod.console_set_default_foreground(panel, libtcod.white)
 	libtcod.console_print_ex(panel, x + total_width / 2, y, libtcod.BKGND_NONE, libtcod.CENTER,
 		name + ': ' + str(value) + '/' + str(maximum))
@@ -1262,9 +1427,10 @@ def new_game():
 	
 	#opening game message
 	message('You fall through a hole in the ground. It\'s dark you should light a torch.', libtcod.red)
-
+	message('Press [i] to access your inventory, [g] to get, [t] to thow, [d] to drop, [c] for character screen', libtcod.red)
+	
 	#initial equipment: a dagger
-	equipment_component = Equipment(slot='hand', power_bonus=2)
+	equipment_component = Equipment(slot='right hand', power_bonus=2)
 	obj = Object(0, 0, '-', 'dagger', libtcod.sky, equipment=equipment_component)
 	inventory.append(obj)
 	equipment_component.equip()
@@ -1357,7 +1523,7 @@ def main_menu():
 		if choice == 0: #new game
 			new_game()
 			play_game()
-		elif choice == 1: #load last game
+		if choice == 1: #load last game
 			try:
 				load_game()
 			except:
@@ -1381,6 +1547,7 @@ def save_game():
 	file['game_state'] = game_state
 	file['stair_index'] = objects.index(stairs)
 	file['dungeon_level'] = dungeon_level
+	file['torch_radius'] = TORCH_RADIUS
 	file.close()
 
 def load_game():
@@ -1396,6 +1563,7 @@ def load_game():
 	game_state = file['game_state']
 	stairs = objects[file['stair_index']]
 	dungeon_level = file['dungeon_level']
+	TORCH_RADIUS = file['torch_radius']
 	file.close()
 	
 	initialize_fov()
@@ -1406,10 +1574,11 @@ def load_game():
 
 ###system initialization###
 # Custom font / Tileset
-libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+libtcod.console_set_custom_font('arial12x12.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
 libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'RogueLike Game', False)
 libtcod.sys_set_fps(LIMIT_FPS)# realtime game code, commented out to give turn based gameplay
 con = libtcod.console_new(SCREEN_WIDTH, SCREEN_HEIGHT) #create off screen console
 panel = libtcod.console_new(SCREEN_WIDTH, PANEL_HEIGHT)
+death_screen = libtcod.console_new(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 main_menu()
